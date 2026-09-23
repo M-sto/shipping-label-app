@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>إدارة العملاء</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        margin: 0;
+        background: #f4f6f8;
+        color: #222;
+    }
+    header {
+        background: #1f2d3d;
+        color: #fff;
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    header a { color: #fff; text-decoration: none; background: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px; }
+    .container { padding: 24px; max-width: 900px; margin: 0 auto; }
+    table { width: 100%; border-collapse: collapse; background: #fff; margin-bottom: 30px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+    th { background: #eef1f5; }
+    .form-box { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .form-box h3 { margin-top: 0; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; color: #555; }
+    input { width: 100%; padding: 9px; margin-bottom: 14px; border: 1px solid #ccc; border-radius: 6px; }
+    button { padding: 10px 20px; background: #2f6feb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #1d54c4; }
+</style>
+</head>
+<body>
+
+<header>
+    <h2>👥 إدارة العملاء</h2>
+    <a href="/">رجوع للوحة التحكم</a>
+</header>
+
+<div class="container">
+
+    <table>
+        <thead>
+            <tr>
+                <th>Client ID</th>
+                <th>الاسم</th>
+                <th>Username</th>
+                <th>API Key</th>
+                <th>Admin؟</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in clients %}
+            <tr>
+                <td>{{ c.client_id }}</td>
+                <td>{{ c.client_name }}</td>
+                <td>{{ c.username or '-' }}</td>
+                <td style="font-family:monospace; font-size:12px;">{{ c.api_key }}</td>
+                <td>{{ 'نعم' if c.is_admin else 'لا' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="form-box">
+        <h3>➕ إضافة عميل جديد</h3>
+        <form method="POST" action="/admin/clients/add">
+            <label>Client ID (بالإنجليزي، بدون مسافات)</label>
+            <input type="text" name="client_id" required>
+
+            <label>اسم العميل / المتجر</label>
+            <input type="text" name="client_name" required>
+
+            <label>اسم المستخدم لتسجيل الدخول</label>
+            <input type="text" name="username" required>
+
+            <label>كلمة المرور</label>
+            <input type="text" name="password" required>
+
+            <button type="submit">إضافة العميل</button>
+        </form>
+    </div>
+
+</div>
+
+</body>
+</html>
