@@ -18,8 +18,11 @@ REQUIRED_ORDER_COLUMNS = {
 
 
 def get_client():
+    # تحويل الـ scheme من libsql:// لـ https:// لتفادي مشاكل WebSocket
+    # في بيئة Vercel Serverless — الاتصال عن طريق HTTP أكثر استقرارًا هنا.
+    http_url = TURSO_URL.replace("libsql://", "https://")
     return libsql_client.create_client_sync(
-        url=TURSO_URL,
+        url=http_url,
         auth_token=TURSO_AUTH_TOKEN,
     )
 
