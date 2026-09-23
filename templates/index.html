@@ -38,6 +38,8 @@
     button:hover { background: #1d54c4; }
     button.secondary { background: #6c757d; }
     button.secondary:hover { background: #565e64; }
+    button.danger { background: #dc3545; }
+    button.danger:hover { background: #b02a37; }
     table {
         width: 100%;
         border-collapse: collapse;
@@ -88,9 +90,10 @@
 <div class="container">
     <form id="ordersForm" method="POST" action="/print/batch" target="_blank">
         <div class="toolbar">
-            <button type="button" onclick="toggleAll()" class="secondary">Select / Deselect All</button>
-            <button type="submit">🖨️ Print Selected Labels</button>
-        </div>
+    <button type="button" onclick="toggleAll()" class="secondary">Select / Deselect All</button>
+    <button type="submit" formaction="/print/batch" formtarget="_blank">🖨️ Print Selected Labels</button>
+    <button type="submit" formaction="/orders/delete" formtarget="_self" class="danger" onclick="return confirmDelete()">🗑️ Delete Selected</button>
+</div>
 
         <table>
             <thead>
@@ -110,7 +113,7 @@
             <tbody>
                 {% for order in orders %}
                 <tr>
-                    <td><input type="checkbox" name="order_ids" value="{{ order.order_id }}"></td>
+                   <td><input type="checkbox" name="order_ids" value="{{ order.order_id }}::{{ order.client_id }}"></td>
                     <td>{{ order.order_id }}</td>
                     <td>{{ order.client_id }}</td>
                     <td>{{ order.customer_name or '-' }}</td>
@@ -145,6 +148,15 @@ function toggleAll() {
     const allChecked = Array.from(boxes).every(b => b.checked);
     boxes.forEach(b => b.checked = !allChecked);
     selectAll.checked = !allChecked;
+}
+
+function confirmDelete() {
+    const checked = document.querySelectorAll('input[name="order_ids"]:checked');
+    if (checked.length === 0) {
+        alert("الرجاء اختيار طلب واحد على الأقل لحذفه.");
+        return false;
+    }
+    return confirm(`هل أنت متأكد من حذف ${checked.length} طلب/طلبات؟ هذا الإجراء لا يمكن التراجع عنه.`);
 }
 </script>
 
