@@ -1,8 +1,13 @@
 import os
+import secrets
 import libsql_client
+from werkzeug.security import generate_password_hash
 
 TURSO_URL = os.environ.get("TURSO_DATABASE_URL")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
+
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")  # لو متسجلش، هيتولّد باسورد عشوائي ويتطبع في اللوجز مرة واحدة
 
 REQUIRED_ORDER_COLUMNS = {
     "customer_name":   "TEXT",
@@ -16,10 +21,14 @@ REQUIRED_ORDER_COLUMNS = {
     "status":          "TEXT DEFAULT 'pending'",
 }
 
+REQUIRED_CLIENT_COLUMNS = {
+    "username":      "TEXT",
+    "password_hash": "TEXT",
+    "is_admin":      "INTEGER DEFAULT 0",
+}
+
 
 def get_client():
-    # تحويل الـ scheme من libsql:// لـ https:// لتفادي مشاكل WebSocket
-    # في بيئة Vercel Serverless — الاتصال عن طريق HTTP أكثر استقرارًا هنا.
     http_url = TURSO_URL.replace("libsql://", "https://")
     return libsql_client.create_client_sync(
         url=http_url,
@@ -28,17 +37,16 @@ def get_client():
 
 
 def rows_to_dicts(result_set):
-    """يحول نتيجة libsql-client إلى list of dicts، عشان يشتغل زي sqlite3.Row في القوالب."""
     columns = result_set.columns
     return [dict(zip(columns, row)) for row in result_set.rows]
 
 
-def ensure_orders_schema(client):
-    result = client.execute("PRAGMA table_info(orders)")
+def ensure_table_schema(client, table, required_columns):
+    result = client.execute(f"PRAGMA table_info({table})")
     existing = {row[1] for row in result.rows}
-    for col, col_type in REQUIRED_ORDER_COLUMNS.items():
+    for col, col_type in required_columns.items():
         if col not in existing:
-            client.execute(f"ALTER TABLE orders ADD COLUMN {col} {col_type}")
+            client.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
 
 
 def init_db():
@@ -64,12 +72,34 @@ def init_db():
             )
         """)
 
-        ensure_orders_schema(client)
+        ensure_table_schema(client, "orders", REQUIRED_ORDER_COLUMNS)
+        ensure_table_schema(client, "clients", REQUIRED_CLIENT_COLUMNS)
 
+        # عميل تجريبي افتراضي (لو مش موجود أصلًا)
         client.execute("""
             INSERT OR IGNORE INTO clients (client_id, api_key, client_name)
             VALUES ('alzahraa', 'test-api-key-123', 'El-Zahraa')
         """)
+
+        # التأكد من وجود حساب Admin واحد على الأقل
+        result = client.execute("SELECT client_id FROM clients WHERE is_admin = 1")
+        if not result.rows:
+            admin_password = ADMIN_PASSWORD or secrets.token_urlsafe(9)
+            password_hash = generate_password_hash(admin_password)
+            admin_api_key = secrets.token_hex(16)
+
+            client.execute(
+                """INSERT OR IGNORE INTO clients
+                   (client_id, api_key, client_name, username, password_hash, is_admin)
+                   VALUES (?, ?, ?, ?, ?, 1)""",
+                ["admin", admin_api_key, "Administrator", ADMIN_USERNAME, password_hash],
+            )
+
+            if not ADMIN_PASSWORD:
+                print(f"=== تم إنشاء حساب Admin تلقائيًا ===")
+                print(f"Username: {ADMIN_USERNAME}")
+                print(f"Password: {admin_password}")
+                print(f"غيّر الباسورد ده فورًا بعد أول تسجيل دخول أو خزّنه بأمان.")
     finally:
         client.close()
 
