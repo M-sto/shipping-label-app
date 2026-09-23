@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تسجيل الدخول</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        background: #1f2d3d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+    }
+    .login-box {
+        background: #fff;
+        padding: 32px;
+        border-radius: 10px;
+        width: 320px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .login-box h2 {
+        margin-top: 0;
+        text-align: center;
+        color: #1f2d3d;
+    }
+    label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+        color: #444;
+    }
+    input {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 16px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+    button {
+        width: 100%;
+        padding: 10px;
+        background: #2f6feb;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 15px;
+        cursor: pointer;
+    }
+    button:hover { background: #1d54c4; }
+    .error {
+        background: #f8d7da;
+        color: #842029;
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 13px;
+        margin-bottom: 16px;
+        text-align: center;
+    }
+</style>
+</head>
+<body>
+
+<div class="login-box">
+    <h2>🔒 تسجيل الدخول</h2>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="POST" action="/login">
+        <label>اسم المستخدم</label>
+        <input type="text" name="username" required autofocus>
+        <label>كلمة المرور</label>
+        <input type="password" name="password" required>
+        <button type="submit">دخول</button>
+    </form>
+</div>
+
+</body>
+</html>
