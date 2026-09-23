@@ -1,7 +1,14 @@
-from flask import Flask, request, jsonify, render_template, redirect
+import os
+from functools import wraps
+from flask import (
+    Flask, request, jsonify, render_template,
+    redirect, url_for, session
+)
+from werkzeug.security import check_password_hash, generate_password_hash
 from database import get_client, init_db, rows_to_dicts
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "change-this-in-production")
 
 try:
     init_db()
@@ -14,6 +21,9 @@ ORDER_FIELDS = [
 ]
 
 
+# ------------------------------------------------------------------
+# مصادقة الـ API (للطلبات القادمة من جوجل شيتس - api_key)
+# ------------------------------------------------------------------
 def authenticate_client(req):
     api_key = (
         req.headers.get("X-API-KEY") or
@@ -38,6 +48,68 @@ def authenticate_client(req):
         client.close()
 
 
+# ------------------------------------------------------------------
+# مصادقة تسجيل الدخول للوحة التحكم (session-based)
+# ------------------------------------------------------------------
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if "client_id" not in session:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def admin_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if "client_id" not in session:
+            return redirect(url_for("login"))
+        if not session.get("is_admin"):
+            return "غير مصرح لك بالوصول لهذه الصفحة", 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html", error=None)
+
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+
+    db = get_client()
+    try:
+        result = db.execute(
+            "SELECT * FROM clients WHERE username = ?", [username]
+        )
+        rows = rows_to_dicts(result)
+    finally:
+        db.close()
+
+    if not rows or not rows[0].get("password_hash"):
+        return render_template("login.html", error="بيانات الدخول غير صحيحة")
+
+    user = rows[0]
+    if not check_password_hash(user["password_hash"], password):
+        return render_template("login.html", error="بيانات الدخول غير صحيحة")
+
+    session["client_id"] = user["client_id"]
+    session["client_name"] = user["client_name"]
+    session["is_admin"] = bool(user.get("is_admin"))
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ------------------------------------------------------------------
+# استقبال الطلبات من جوجل شيتس
+# ------------------------------------------------------------------
 @app.route("/api/orders", methods=["POST"])
 def receive_order():
     auth_client = authenticate_client(request)
@@ -84,31 +156,53 @@ def receive_order():
     }), 200
 
 
+# ------------------------------------------------------------------
+# لوحة التحكم - كل عميل يشوف طلباته بس، الأدمن يشوف الكل
+# ------------------------------------------------------------------
 @app.route("/", methods=["GET"])
+@login_required
 def dashboard():
     db = get_client()
     try:
-        result = db.execute("SELECT * FROM orders ORDER BY created_at DESC")
+        if session.get("is_admin"):
+            result = db.execute("SELECT * FROM orders ORDER BY created_at DESC")
+        else:
+            result = db.execute(
+                "SELECT * FROM orders WHERE client_id = ? ORDER BY created_at DESC",
+                [session["client_id"]],
+            )
         orders = rows_to_dicts(result)
     finally:
         db.close()
-    return render_template("index.html", orders=orders)
+
+    return render_template(
+        "index.html",
+        orders=orders,
+        is_admin=session.get("is_admin"),
+        client_name=session.get("client_name"),
+    )
 
 
 @app.route("/print/order/<order_id>", methods=["GET"])
+@login_required
 def print_single_order(order_id):
-    client_id = request.args.get("client_id")
-
     db = get_client()
     try:
-        if client_id:
-            result = db.execute(
-                "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
-                [order_id, client_id],
-            )
+        if session.get("is_admin"):
+            client_id = request.args.get("client_id")
+            if client_id:
+                result = db.execute(
+                    "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
+                    [order_id, client_id],
+                )
+            else:
+                result = db.execute(
+                    "SELECT * FROM orders WHERE order_id = ?", [order_id]
+                )
         else:
             result = db.execute(
-                "SELECT * FROM orders WHERE order_id = ?", [order_id]
+                "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
+                [order_id, session["client_id"]],
             )
         orders = rows_to_dicts(result)
     finally:
@@ -121,6 +215,7 @@ def print_single_order(order_id):
 
 
 @app.route("/print/batch", methods=["POST"])
+@login_required
 def print_batch_orders():
     selected = request.form.getlist("order_ids")
     if not selected:
@@ -139,6 +234,9 @@ def print_batch_orders():
     try:
         orders = []
         for order_id, client_id in pairs:
+            # عميل عادي: مينفعش يطبع طلب عميل تاني حتى لو عدّل الطلب يدويًا
+            if not session.get("is_admin") and client_id != session["client_id"]:
+                continue
             result = db.execute(
                 "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
                 [order_id, client_id],
@@ -154,6 +252,7 @@ def print_batch_orders():
 
 
 @app.route("/orders/delete", methods=["POST"])
+@login_required
 def delete_orders():
     selected = request.form.getlist("order_ids")
     if not selected:
@@ -171,6 +270,8 @@ def delete_orders():
     db = get_client()
     try:
         for order_id, client_id in pairs:
+            if not session.get("is_admin") and client_id != session["client_id"]:
+                continue
             db.execute(
                 "DELETE FROM orders WHERE order_id = ? AND client_id = ?",
                 [order_id, client_id],
@@ -178,7 +279,51 @@ def delete_orders():
     finally:
         db.close()
 
-    return redirect("/")
+    return redirect(url_for("dashboard"))
+
+
+# ------------------------------------------------------------------
+# صفحات الأدمن - إدارة العملاء
+# ------------------------------------------------------------------
+@app.route("/admin/clients", methods=["GET"])
+@admin_required
+def admin_clients():
+    db = get_client()
+    try:
+        result = db.execute("SELECT * FROM clients ORDER BY client_id")
+        clients = rows_to_dicts(result)
+    finally:
+        db.close()
+    return render_template("admin_clients.html", clients=clients, message=None)
+
+
+@app.route("/admin/clients/add", methods=["POST"])
+@admin_required
+def admin_add_client():
+    import secrets as _secrets
+
+    client_id = request.form.get("client_id", "").strip()
+    client_name = request.form.get("client_name", "").strip()
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
+
+    if not all([client_id, client_name, username, password]):
+        return "جميع الحقول مطلوبة", 400
+
+    api_key = _secrets.token_hex(16)
+    password_hash = generate_password_hash(password)
+
+    db = get_client()
+    try:
+        db.execute(
+            """INSERT INTO clients (client_id, api_key, client_name, username, password_hash, is_admin)
+               VALUES (?, ?, ?, ?, ?, 0)""",
+            [client_id, api_key, client_name, username, password_hash],
+        )
+    finally:
+        db.close()
+
+    return redirect(url_for("admin_clients"))
 
 
 if __name__ == "__main__":
