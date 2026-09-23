@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect
 from database import get_client, init_db, rows_to_dicts
 
 app = Flask(__name__)
@@ -122,18 +122,28 @@ def print_single_order(order_id):
 
 @app.route("/print/batch", methods=["POST"])
 def print_batch_orders():
-    order_ids = request.form.getlist("order_ids")
-    if not order_ids:
+    selected = request.form.getlist("order_ids")
+    if not selected:
         return "No orders selected", 400
 
-    placeholders = ", ".join("?" for _ in order_ids)
+    pairs = []
+    for item in selected:
+        if "::" in item:
+            oid, cid = item.split("::", 1)
+            pairs.append((oid, cid))
+
+    if not pairs:
+        return "Invalid selection", 400
+
     db = get_client()
     try:
-        result = db.execute(
-            f"SELECT * FROM orders WHERE order_id IN ({placeholders})",
-            order_ids,
-        )
-        orders = rows_to_dicts(result)
+        orders = []
+        for order_id, client_id in pairs:
+            result = db.execute(
+                "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
+                [order_id, client_id],
+            )
+            orders.extend(rows_to_dicts(result))
     finally:
         db.close()
 
@@ -141,6 +151,34 @@ def print_batch_orders():
         return "No matching orders found", 404
 
     return render_template("label.html", orders=orders)
+
+
+@app.route("/orders/delete", methods=["POST"])
+def delete_orders():
+    selected = request.form.getlist("order_ids")
+    if not selected:
+        return "No orders selected", 400
+
+    pairs = []
+    for item in selected:
+        if "::" in item:
+            oid, cid = item.split("::", 1)
+            pairs.append((oid, cid))
+
+    if not pairs:
+        return "Invalid selection", 400
+
+    db = get_client()
+    try:
+        for order_id, client_id in pairs:
+            db.execute(
+                "DELETE FROM orders WHERE order_id = ? AND client_id = ?",
+                [order_id, client_id],
+            )
+    finally:
+        db.close()
+
+    return redirect("/")
 
 
 if __name__ == "__main__":
