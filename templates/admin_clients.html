@@ -20,9 +20,9 @@
         align-items: center;
     }
     header a { color: #fff; text-decoration: none; background: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px; }
-    .container { padding: 24px; max-width: 950px; margin: 0 auto; }
+    .container { padding: 24px; max-width: 1050px; margin: 0 auto; }
     table { width: 100%; border-collapse: collapse; background: #fff; margin-bottom: 30px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-    th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+    th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid #e5e7eb; font-size: 13px; vertical-align: middle; }
     th { background: #eef1f5; }
     .form-box { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
     .form-box h3 { margin-top: 0; }
@@ -30,13 +30,19 @@
     input { width: 100%; padding: 9px; margin-bottom: 14px; border: 1px solid #ccc; border-radius: 6px; }
     button { padding: 10px 20px; background: #2f6feb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
     button:hover { background: #1d54c4; }
-    .copy-btn {
-        background: #198754;
-        padding: 6px 12px;
-        font-size: 12px;
-    }
+    .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 5px; margin: 2px; }
+    .copy-btn { background: #198754; }
     .copy-btn:hover { background: #146c43; }
     .copy-btn.copied { background: #6c757d; }
+    .suspend-btn { background: #fd7e14; }
+    .suspend-btn:hover { background: #d96b0c; }
+    .activate-btn { background: #198754; }
+    .activate-btn:hover { background: #146c43; }
+    .delete-btn { background: #dc3545; }
+    .delete-btn:hover { background: #b02a37; }
+    .badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge.active { background: #d1e7dd; color: #0f5132; }
+    .badge.suspended { background: #f8d7da; color: #842029; }
     .toast {
         position: fixed;
         bottom: 24px;
@@ -69,7 +75,8 @@
                 <th>Username</th>
                 <th>API Key</th>
                 <th>Admin؟</th>
-                <th>كود Apps Script</th>
+                <th>الحالة</th>
+                <th>إجراءات</th>
             </tr>
         </thead>
         <tbody>
@@ -78,13 +85,32 @@
                 <td>{{ c.client_id }}</td>
                 <td>{{ c.client_name }}</td>
                 <td>{{ c.username or '-' }}</td>
-                <td style="font-family:monospace; font-size:12px;">{{ c.api_key }}</td>
+                <td style="font-family:monospace; font-size:11px;">{{ c.api_key }}</td>
                 <td>{{ 'نعم' if c.is_admin else 'لا' }}</td>
                 <td>
+                    {% if c.is_active == 0 %}
+                    <span class="badge suspended">موقوف</span>
+                    {% else %}
+                    <span class="badge active">نشط</span>
+                    {% endif %}
+                </td>
+                <td>
                     {% if not c.is_admin %}
-                    <button type="button" class="copy-btn" onclick="copyScript('{{ c.api_key }}', this)">
-                        📋 نسخ الكود
-                    </button>
+                    <button type="button" class="btn-sm copy-btn" onclick="copyScript('{{ c.api_key }}', this)">📋 نسخ الكود</button>
+
+                    <form method="POST" action="/admin/clients/{{ c.client_id }}/toggle" style="display:inline;"
+                          onsubmit="return confirm('{% if c.is_active == 0 %}هل تريد تفعيل هذا العميل؟{% else %}هل تريد إيقاف هذا العميل؟ لن يستطيع تسجيل الدخول ولا إرسال طلبات.{% endif %}');">
+                        {% if c.is_active == 0 %}
+                        <button type="submit" class="btn-sm activate-btn">✅ تفعيل</button>
+                        {% else %}
+                        <button type="submit" class="btn-sm suspend-btn">⏸️ إيقاف</button>
+                        {% endif %}
+                    </form>
+
+                    <form method="POST" action="/admin/clients/{{ c.client_id }}/delete" style="display:inline;"
+                          onsubmit="return confirm('هل أنت متأكد من حذف هذا العميل نهائيًا؟ سيتم حذف كل طلباته أيضًا. هذا الإجراء لا يمكن التراجع عنه.');">
+                        <button type="submit" class="btn-sm delete-btn">🗑️ حذف</button>
+                    </form>
                     {% else %}
                     -
                     {% endif %}
@@ -166,6 +192,10 @@ function addDailySeparator() {
 
 // ==========================================
 // 2. الجزء الخاص بإرسال الطلبات لبرنامج البوالص
+// ترتيب أعمدة الشيت المستخدمة هنا:
+// A: Order ID | B: Phone | C: Name | D: Address
+// G: Shipping Fee | H: Governorate | I: Collect Amount
+// (التوتال بيتحسب تلقائيًا في السيرفر = Collect + Shipping)
 // ==========================================
 const APP_URL = "${APP_URL}";
 const API_KEY = "${apiKey}";
@@ -200,7 +230,6 @@ function sendSelectedToLabelApp() {
       customer_name: String(row[2] || "").trim(),
       address: String(row[3] || "").trim(),
       governorate: String(row[7] || "").trim(),
-      total_amount: parseFloat(row[5]) || 0,
       shipping_fee: parseFloat(row[6]) || 0,
       collect_amount: parseFloat(row[8]) || 0
     };
