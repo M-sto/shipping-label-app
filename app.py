@@ -21,9 +21,13 @@ ORDER_FIELDS = [
 ]
 
 
-# ------------------------------------------------------------------
-# مصادقة الـ API (للطلبات القادمة من جوجل شيتس - api_key)
-# ------------------------------------------------------------------
+def _to_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def authenticate_client(req):
     api_key = (
         req.headers.get("X-API-KEY") or
@@ -48,9 +52,6 @@ def authenticate_client(req):
         client.close()
 
 
-# ------------------------------------------------------------------
-# مصادقة تسجيل الدخول للوحة التحكم (session-based)
-# ------------------------------------------------------------------
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -92,11 +93,16 @@ def login():
         return render_template("login.html", error="بيانات الدخول غير صحيحة")
 
     user = rows[0]
+
     if not check_password_hash(user["password_hash"], password):
         return render_template("login.html", error="بيانات الدخول غير صحيحة")
 
+    if user.get("is_active", 1) == 0:
+        return render_template("login.html", error="تم إيقاف هذا الحساب. برجاء التواصل مع الإدارة.")
+
     session["client_id"] = user["client_id"]
     session["client_name"] = user["client_name"]
+    session["username"] = user["username"]
     session["is_admin"] = bool(user.get("is_admin"))
     return redirect(url_for("dashboard"))
 
@@ -107,14 +113,14 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ------------------------------------------------------------------
-# استقبال الطلبات من جوجل شيتس
-# ------------------------------------------------------------------
 @app.route("/api/orders", methods=["POST"])
 def receive_order():
     auth_client = authenticate_client(request)
     if not auth_client:
         return jsonify({"error": "Invalid or missing API key"}), 401
+
+    if auth_client.get("is_active", 1) == 0:
+        return jsonify({"error": "This client account is suspended"}), 403
 
     data = request.get_json() or {}
     order_id = data.get("order_id")
@@ -122,7 +128,22 @@ def receive_order():
         return jsonify({"error": "order_id is required"}), 400
 
     client_id = auth_client["client_id"]
-    values = [data.get(f) for f in ORDER_FIELDS]
+
+    collect_amount = _to_float(data.get("collect_amount"))
+    shipping_fee = _to_float(data.get("shipping_fee"))
+    total_amount = collect_amount + shipping_fee  # دايمًا محسوب من الاتنين دول
+
+    field_values = {
+        "customer_name": data.get("customer_name"),
+        "phone1": data.get("phone1"),
+        "phone2": data.get("phone2"),
+        "address": data.get("address"),
+        "governorate": data.get("governorate"),
+        "collect_amount": collect_amount,
+        "shipping_fee": shipping_fee,
+        "total_amount": total_amount,
+    }
+    values = [field_values[f] for f in ORDER_FIELDS]
 
     db = get_client()
     try:
@@ -156,9 +177,6 @@ def receive_order():
     }), 200
 
 
-# ------------------------------------------------------------------
-# لوحة التحكم - كل عميل يشوف طلباته بس، الأدمن يشوف الكل
-# ------------------------------------------------------------------
 @app.route("/", methods=["GET"])
 @login_required
 def dashboard():
@@ -192,16 +210,23 @@ def print_single_order(order_id):
             client_id = request.args.get("client_id")
             if client_id:
                 result = db.execute(
-                    "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
+                    """SELECT orders.*, clients.username AS client_username
+                       FROM orders JOIN clients ON orders.client_id = clients.client_id
+                       WHERE orders.order_id = ? AND orders.client_id = ?""",
                     [order_id, client_id],
                 )
             else:
                 result = db.execute(
-                    "SELECT * FROM orders WHERE order_id = ?", [order_id]
+                    """SELECT orders.*, clients.username AS client_username
+                       FROM orders JOIN clients ON orders.client_id = clients.client_id
+                       WHERE orders.order_id = ?""",
+                    [order_id],
                 )
         else:
             result = db.execute(
-                "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
+                """SELECT orders.*, clients.username AS client_username
+                   FROM orders JOIN clients ON orders.client_id = clients.client_id
+                   WHERE orders.order_id = ? AND orders.client_id = ?""",
                 [order_id, session["client_id"]],
             )
         orders = rows_to_dicts(result)
@@ -234,11 +259,12 @@ def print_batch_orders():
     try:
         orders = []
         for order_id, client_id in pairs:
-            # عميل عادي: مينفعش يطبع طلب عميل تاني حتى لو عدّل الطلب يدويًا
             if not session.get("is_admin") and client_id != session["client_id"]:
                 continue
             result = db.execute(
-                "SELECT * FROM orders WHERE order_id = ? AND client_id = ?",
+                """SELECT orders.*, clients.username AS client_username
+                   FROM orders JOIN clients ON orders.client_id = clients.client_id
+                   WHERE orders.order_id = ? AND orders.client_id = ?""",
                 [order_id, client_id],
             )
             orders.extend(rows_to_dicts(result))
@@ -282,9 +308,6 @@ def delete_orders():
     return redirect(url_for("dashboard"))
 
 
-# ------------------------------------------------------------------
-# صفحات الأدمن - إدارة العملاء
-# ------------------------------------------------------------------
 @app.route("/admin/clients", methods=["GET"])
 @admin_required
 def admin_clients():
@@ -294,7 +317,7 @@ def admin_clients():
         clients = rows_to_dicts(result)
     finally:
         db.close()
-    return render_template("admin_clients.html", clients=clients, message=None)
+    return render_template("admin_clients.html", clients=clients)
 
 
 @app.route("/admin/clients/add", methods=["POST"])
@@ -316,10 +339,47 @@ def admin_add_client():
     db = get_client()
     try:
         db.execute(
-            """INSERT INTO clients (client_id, api_key, client_name, username, password_hash, is_admin)
-               VALUES (?, ?, ?, ?, ?, 0)""",
+            """INSERT INTO clients (client_id, api_key, client_name, username, password_hash, is_admin, is_active)
+               VALUES (?, ?, ?, ?, ?, 0, 1)""",
             [client_id, api_key, client_name, username, password_hash],
         )
+    finally:
+        db.close()
+
+    return redirect(url_for("admin_clients"))
+
+
+@app.route("/admin/clients/<client_id>/toggle", methods=["POST"])
+@admin_required
+def admin_toggle_client(client_id):
+    if client_id == session.get("client_id"):
+        return "لا يمكنك إيقاف حسابك الخاص", 400
+
+    db = get_client()
+    try:
+        result = db.execute("SELECT is_active FROM clients WHERE client_id = ?", [client_id])
+        rows = rows_to_dicts(result)
+        if not rows:
+            return "Client not found", 404
+        current = rows[0].get("is_active", 1)
+        new_status = 0 if current else 1
+        db.execute("UPDATE clients SET is_active = ? WHERE client_id = ?", [new_status, client_id])
+    finally:
+        db.close()
+
+    return redirect(url_for("admin_clients"))
+
+
+@app.route("/admin/clients/<client_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_client(client_id):
+    if client_id == session.get("client_id"):
+        return "لا يمكنك حذف حسابك الخاص", 400
+
+    db = get_client()
+    try:
+        db.execute("DELETE FROM orders WHERE client_id = ?", [client_id])
+        db.execute("DELETE FROM clients WHERE client_id = ?", [client_id])
     finally:
         db.close()
 
