@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shipping Dashboard</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        margin: 0;
+        background: #f4f6f8;
+        color: #222;
+    }
+    header {
+        background: #1f2d3d;
+        color: #fff;
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    header h1 { font-size: 20px; margin: 0; }
+    .container { padding: 24px; }
+    .toolbar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    button {
+        padding: 10px 18px;
+        border: none;
+        border-radius: 6px;
+        background: #2f6feb;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+    }
+    button:hover { background: #1d54c4; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover { background: #565e64; }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    th, td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 14px;
+    }
+    th {
+        background: #eef1f5;
+        font-weight: 600;
+    }
+    tr:hover { background: #f9fafb; }
+    .status {
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: capitalize;
+    }
+    .status.pending { background: #fff3cd; color: #856404; }
+    .status.printed { background: #d1e7dd; color: #0f5132; }
+    .status.delivered { background: #cfe2ff; color: #084298; }
+    footer {
+        text-align: center;
+        padding: 18px;
+        font-size: 12px;
+        color: #888;
+        border-top: 1px solid #e5e7eb;
+        margin-top: 30px;
+    }
+    @media print {
+        header, .toolbar, footer { display: none; }
+    }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>📦 Shipping Orders Dashboard</h1>
+    <span>{{ orders|length }} orders</span>
+</header>
+
+<div class="container">
+    <form id="ordersForm" method="POST" action="/print/batch" target="_blank">
+        <div class="toolbar">
+            <button type="button" onclick="toggleAll()" class="secondary">Select / Deselect All</button>
+            <button type="submit">🖨️ Print Selected Labels</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAll" onclick="toggleAll()"></th>
+                    <th>Order ID</th>
+                    <th>Client</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Governorate</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Print</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td><input type="checkbox" name="order_ids" value="{{ order.order_id }}"></td>
+                    <td>{{ order.order_id }}</td>
+                    <td>{{ order.client_id }}</td>
+                    <td>{{ order.customer_name or '-' }}</td>
+                    <td>{{ order.phone1 or '-' }}</td>
+                    <td>{{ order.governorate or '-' }}</td>
+                    <td>{{ '%.2f'|format(order.total_amount) if order.total_amount is not none else '-' }}</td>
+                    <td><span class="status {{ order.status }}">{{ order.status }}</span></td>
+                    <td>{{ order.created_at }}</td>
+                    <td>
+                        <button type="button" class="secondary"
+                            onclick="window.open('/print/order/{{ order.order_id }}?client_id={{ order.client_id }}', '_blank')">
+                            Print
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" style="text-align:center; padding:20px;">No orders yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </form>
+</div>
+
+<footer>
+    System Developed by Eng. Mohamed Abdullah | For System Rental &amp; Inquiries: 01113243296
+</footer>
+
+<script>
+function toggleAll() {
+    const boxes = document.querySelectorAll('input[name="order_ids"]');
+    const selectAll = document.getElementById('selectAll');
+    const allChecked = Array.from(boxes).every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+    selectAll.checked = !allChecked;
+}
+</script>
+
+</body>
+</html>
