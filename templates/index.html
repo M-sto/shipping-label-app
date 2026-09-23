@@ -20,6 +20,20 @@
         align-items: center;
     }
     header h1 { font-size: 20px; margin: 0; }
+    header .user-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 13px;
+    }
+    header a {
+        color: #fff;
+        text-decoration: none;
+        background: rgba(255,255,255,0.15);
+        padding: 6px 12px;
+        border-radius: 6px;
+    }
+    header a:hover { background: rgba(255,255,255,0.3); }
     .container { padding: 24px; }
     .toolbar {
         display: flex;
@@ -84,23 +98,30 @@
 
 <header>
     <h1>📦 Shipping Orders Dashboard</h1>
-    <span>{{ orders|length }} orders</span>
+    <div class="user-info">
+        <span>{{ client_name }}{% if is_admin %} (Admin){% endif %}</span>
+        {% if is_admin %}
+        <a href="/admin/clients">إدارة العملاء</a>
+        {% endif %}
+        <a href="/logout">تسجيل الخروج</a>
+        <span>{{ orders|length }} orders</span>
+    </div>
 </header>
 
 <div class="container">
     <form id="ordersForm" method="POST" action="/print/batch" target="_blank">
         <div class="toolbar">
-    <button type="button" onclick="toggleAll()" class="secondary">Select / Deselect All</button>
-    <button type="submit" formaction="/print/batch" formtarget="_blank">🖨️ Print Selected Labels</button>
-    <button type="submit" formaction="/orders/delete" formtarget="_self" class="danger" onclick="return confirmDelete()">🗑️ Delete Selected</button>
-</div>
+            <button type="button" onclick="toggleAll()" class="secondary">Select / Deselect All</button>
+            <button type="submit" formaction="/print/batch" formtarget="_blank">🖨️ Print Selected Labels</button>
+            <button type="submit" formaction="/orders/delete" formtarget="_self" class="danger" onclick="return confirmDelete()">🗑️ Delete Selected</button>
+        </div>
 
         <table>
             <thead>
                 <tr>
                     <th><input type="checkbox" id="selectAll" onclick="toggleAll()"></th>
                     <th>Order ID</th>
-                    <th>Client</th>
+                    {% if is_admin %}<th>Client</th>{% endif %}
                     <th>Customer</th>
                     <th>Phone</th>
                     <th>Governorate</th>
@@ -113,9 +134,9 @@
             <tbody>
                 {% for order in orders %}
                 <tr>
-                   <td><input type="checkbox" name="order_ids" value="{{ order.order_id }}::{{ order.client_id }}"></td>
+                    <td><input type="checkbox" name="order_ids" value="{{ order.order_id }}::{{ order.client_id }}"></td>
                     <td>{{ order.order_id }}</td>
-                    <td>{{ order.client_id }}</td>
+                    {% if is_admin %}<td>{{ order.client_id }}</td>{% endif %}
                     <td>{{ order.customer_name or '-' }}</td>
                     <td>{{ order.phone1 or '-' }}</td>
                     <td>{{ order.governorate or '-' }}</td>
