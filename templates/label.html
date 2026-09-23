@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shipping Label</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.5/JsBarcode.all.min.js"></script>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        margin: 0;
+        background: #ececec;
+    }
+    .label {
+        width: 4in;
+        height: 6in;
+        margin: 20px auto;
+        background: #fff;
+        border: 1px solid #333;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        page-break-after: always;
+    }
+    .label:last-child { page-break-after: auto; }
+
+    .label-header {
+        text-align: center;
+        border-bottom: 2px solid #000;
+        padding-bottom: 8px;
+    }
+    .label-header .client-name {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0 0 4px;
+    }
+    .label-header .order-id {
+        font-size: 13px;
+        color: #444;
+        margin-bottom: 6px;
+    }
+    .label-header svg { max-width: 100%; height: 55px; }
+
+    .customer-info {
+        margin-top: 10px;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    .customer-info .row { margin-bottom: 3px; }
+    .customer-info .label-tag {
+        font-weight: 600;
+        display: inline-block;
+        width: 75px;
+    }
+    .governorate-box {
+        margin: 8px 0;
+        padding: 6px 10px;
+        background: #000;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 700;
+        text-align: center;
+        border-radius: 4px;
+        letter-spacing: 1px;
+    }
+    .address-box {
+        margin-top: 6px;
+        padding: 6px 8px;
+        border: 1px dashed #999;
+        font-size: 13px;
+        min-height: 40px;
+    }
+
+    .financials {
+        margin-top: 10px;
+        border: 2px solid #000;
+        border-radius: 6px;
+        padding: 8px;
+    }
+    .financials .fin-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+    .financials .total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 2px solid #000;
+        margin-top: 6px;
+        padding-top: 6px;
+    }
+    .financials .total-row .label-tag {
+        font-size: 15px;
+        font-weight: 700;
+    }
+    .financials .total-row .amount {
+        font-size: 30px;
+        font-weight: 900;
+    }
+
+    .label-footer {
+        text-align: center;
+        font-size: 9px;
+        color: #666;
+        border-top: 1px solid #ccc;
+        padding-top: 6px;
+        margin-top: 8px;
+    }
+
+    .print-bar {
+        text-align: center;
+        margin: 16px;
+    }
+    .print-bar button {
+        padding: 10px 20px;
+        background: #2f6feb;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    @media print {
+        body { background: #fff; }
+        .print-bar { display: none; }
+        .label { margin: 0 auto; border: none; }
+    }
+</style>
+</head>
+<body>
+
+<div class="print-bar">
+    <button onclick="window.print()">🖨️ Print</button>
+</div>
+
+{% for order in orders %}
+<div class="label">
+    <div class="label-header">
+        <p class="client-name">{{ order.client_id }}</p>
+        <p class="order-id">Order #: {{ order.order_id }}</p>
+        <svg class="barcode-{{ loop.index }}"></svg>
+    </div>
+
+    <div class="customer-info">
+        <div class="row"><span class="label-tag">Customer:</span> {{ order.customer_name or '-' }}</div>
+        <div class="row"><span class="label-tag">Phone 1:</span> {{ order.phone1 or '-' }}</div>
+        <div class="row"><span class="label-tag">Phone 2:</span> {{ order.phone2 or '-' }}</div>
+
+        <div class="governorate-box">{{ order.governorate or 'N/A' }}</div>
+
+        <div class="address-box">{{ order.address or 'No address provided' }}</div>
+    </div>
+
+    <div class="financials">
+        <div class="fin-row">
+            <span>Collect Amount</span>
+            <span>{{ '%.2f'|format(order.collect_amount) if order.collect_amount is not none else '0.00' }}</span>
+        </div>
+        <div class="fin-row">
+            <span>Shipping Fee</span>
+            <span>{{ '%.2f'|format(order.shipping_fee) if order.shipping_fee is not none else '0.00' }}</span>
+        </div>
+        <div class="total-row">
+            <span class="label-tag">TOTAL</span>
+            <span class="amount">{{ '%.2f'|format(order.total_amount) if order.total_amount is not none else '0.00' }}</span>
+        </div>
+    </div>
+
+    <div class="label-footer">
+        System Developed by Eng. Mohamed Abdullah | For System Rental &amp; Inquiries: 01113243296
+    </div>
+</div>
+{% endfor %}
+
+<script>
+    {% for order in orders %}
+    JsBarcode(".barcode-{{ loop.index }}", "{{ order.order_id }}", {
+        format: "CODE128",
+        displayValue: true,
+        fontSize: 12,
+        height: 40,
+        margin: 0
+    });
+    {% endfor %}
+</script>
+
+</body>
+</html>
