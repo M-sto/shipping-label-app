@@ -7,7 +7,7 @@ TURSO_URL = os.environ.get("TURSO_DATABASE_URL")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")  # لو متسجلش، هيتولّد باسورد عشوائي ويتطبع في اللوجز مرة واحدة
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 
 REQUIRED_ORDER_COLUMNS = {
     "customer_name":   "TEXT",
@@ -25,6 +25,7 @@ REQUIRED_CLIENT_COLUMNS = {
     "username":      "TEXT",
     "password_hash": "TEXT",
     "is_admin":      "INTEGER DEFAULT 0",
+    "is_active":      "INTEGER DEFAULT 1",
 }
 
 
@@ -75,13 +76,11 @@ def init_db():
         ensure_table_schema(client, "orders", REQUIRED_ORDER_COLUMNS)
         ensure_table_schema(client, "clients", REQUIRED_CLIENT_COLUMNS)
 
-        # عميل تجريبي افتراضي (لو مش موجود أصلًا)
         client.execute("""
             INSERT OR IGNORE INTO clients (client_id, api_key, client_name)
             VALUES ('alzahraa', 'test-api-key-123', 'El-Zahraa')
         """)
 
-        # التأكد من وجود حساب Admin واحد على الأقل
         result = client.execute("SELECT client_id FROM clients WHERE is_admin = 1")
         if not result.rows:
             admin_password = ADMIN_PASSWORD or secrets.token_urlsafe(9)
@@ -90,8 +89,8 @@ def init_db():
 
             client.execute(
                 """INSERT OR IGNORE INTO clients
-                   (client_id, api_key, client_name, username, password_hash, is_admin)
-                   VALUES (?, ?, ?, ?, ?, 1)""",
+                   (client_id, api_key, client_name, username, password_hash, is_admin, is_active)
+                   VALUES (?, ?, ?, ?, ?, 1, 1)""",
                 ["admin", admin_api_key, "Administrator", ADMIN_USERNAME, password_hash],
             )
 
@@ -99,7 +98,6 @@ def init_db():
                 print(f"=== تم إنشاء حساب Admin تلقائيًا ===")
                 print(f"Username: {ADMIN_USERNAME}")
                 print(f"Password: {admin_password}")
-                print(f"غيّر الباسورد ده فورًا بعد أول تسجيل دخول أو خزّنه بأمان.")
     finally:
         client.close()
 
