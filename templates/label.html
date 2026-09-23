@@ -140,7 +140,7 @@
 {% for order in orders %}
 <div class="label">
     <div class="label-header">
-        <p class="client-name">{{ order.client_id }}</p>
+        <p class="client-name">{{ order.client_username or order.client_id }}</p>
         <p class="order-id">Order #: {{ order.order_id }}</p>
         <svg class="barcode-{{ loop.index }}"></svg>
     </div>
