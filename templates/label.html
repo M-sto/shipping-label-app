@@ -17,7 +17,7 @@
         margin: 20px auto;
         background: #fff;
         border: 1px solid #333;
-        padding: 8px;
+        padding: 6px;
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -25,86 +25,115 @@
     }
     .label:last-child { page-break-after: auto; }
 
+    /* ---------- Header: brand + order id + barcode ---------- */
     .label-header {
         text-align: center;
         border-bottom: 2px solid #000;
-        padding-bottom: 6px;
+        padding-bottom: 5px;
         flex: 0 0 auto;
     }
     .label-header .client-name {
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 700;
-        margin: 0 0 4px;
+        line-height: 1.2;
+        margin: 0 0 2px;
     }
     .label-header .order-id {
-        font-size: 18px;
+        font-size: 16px;
+        line-height: 1.2;
         color: #444;
-        margin-bottom: 6px;
+        margin: 0 0 4px;
     }
-    .label-header svg { max-width: 100%; height: 45px; }
+    .label-header svg { display: block; margin: 0 auto; max-width: 100%; height: 45px; }
+    /* if the barcode did not render, don't leave an empty gap above the divider */
+    .label-header svg:empty { display: none; }
 
+    /* ---------- Customer info ---------- */
     .customer-info {
-        margin-top: 8px;
+        margin-top: 6px;
         font-size: 18px;
-        line-height: 1.4;
-        display: flex;
-        flex-direction: column;
-        flex: 1 1 auto;
-        min-height: 0;
+        line-height: 1.3;
+        flex: 0 0 auto;
     }
-    .customer-info .row { margin-bottom: 3px; flex: 0 0 auto; }
+    .customer-info .row {
+        display: flex;
+        align-items: baseline;
+        margin-bottom: 2px;
+    }
     .customer-info .label-tag {
         font-weight: 600;
-        display: inline-block;
-        width: 95px;
+        flex: 0 0 95px;
+    }
+    .customer-info .val {
+        flex: 1 1 auto;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     .governorate-box {
-        margin: 6px 0;
-        padding: 6px 10px;
+        margin: 5px 0;
+        padding: 5px 10px;
         background: #000;
         color: #fff;
         font-size: 20px;
+        line-height: 1.3;
         font-weight: 700;
         text-align: center;
         border-radius: 4px;
         letter-spacing: 1px;
-        flex: 0 0 auto;
     }
+
+    /* ---------- Address: FIXED-size frame, text shrinks to fit ---------- */
     .address-box {
-        margin-top: 6px;
-        padding: 6px 10px;
+        height: 160px;
+        padding: 6px 8px;
         border: 1px dashed #999;
-        font-size: 22px;
-        line-height: 1.4;
-        min-height: 40px;
-        flex: 1 1 auto;
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
-        overflow: auto;
+        overflow: hidden;
+        flex: 0 0 auto;
     }
+    .address-text {
+        width: 100%;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+        font-size: 24px;
+    }
+    /* starting size by text length (works even without JavaScript);
+       the script below then shrinks further if it still doesn't fit */
+    .address-text.fs-l  { font-size: 22px; }
+    .address-text.fs-m  { font-size: 20px; }
+    .address-text.fs-s  { font-size: 18px; }
+    .address-text.fs-xs { font-size: 16px; }
+    .address-text.fs-xxs{ font-size: 14px; }
+    .address-text.fs-min{ font-size: 12px; }
 
+    /* ---------- Financials ---------- */
     .financials {
-        margin-top: 8px;
+        margin-top: 6px;
+        margin-bottom: 6px;
         border: 2px solid #000;
         border-radius: 6px;
-        padding: 8px;
+        padding: 6px 8px;
         flex: 0 0 auto;
     }
     .financials .fin-row {
         display: flex;
         justify-content: space-between;
         font-size: 18px;
-        margin-bottom: 4px;
+        line-height: 1.3;
+        margin-bottom: 3px;
     }
     .financials .total-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
         border-top: 2px solid #000;
-        margin-top: 6px;
-        padding-top: 6px;
+        margin-top: 4px;
+        padding-top: 4px;
     }
     .financials .total-row .label-tag {
         font-size: 20px;
@@ -112,16 +141,19 @@
     }
     .financials .total-row .amount {
         font-size: 34px;
+        line-height: 1.2;
         font-weight: 900;
     }
 
+    /* ---------- Footer: pinned to the bottom; any spare space sits above it ---------- */
     .label-footer {
+        margin-top: auto;
         text-align: center;
         font-size: 11px;
+        line-height: 1.3;
         color: #666;
         border-top: 1px solid #ccc;
-        padding-top: 5px;
-        margin-top: 6px;
+        padding-top: 4px;
         flex: 0 0 auto;
     }
 
@@ -147,8 +179,8 @@
         body { background: #fff; }
         .print-bar { display: none; }
         .label {
-            width: 100%;
-            height: 100%;
+            width: 4in;
+            height: 6in;
             margin: 0;
             border: none;
         }
@@ -170,13 +202,17 @@
     </div>
 
     <div class="customer-info">
-        <div class="row"><span class="label-tag">Customer:</span> {{ order.customer_name or '-' }}</div>
-        <div class="row"><span class="label-tag">Phone 1:</span> {{ order.phone1 or '-' }}</div>
-        <div class="row"><span class="label-tag">Phone 2:</span> {{ order.phone2 or '-' }}</div>
+        <div class="row"><span class="label-tag">Customer:</span><span class="val">{{ order.customer_name or '-' }}</span></div>
+        <div class="row"><span class="label-tag">Phone 1:</span><span class="val">{{ order.phone1 or '-' }}</span></div>
+        <div class="row"><span class="label-tag">Phone 2:</span><span class="val">{{ order.phone2 or '-' }}</span></div>
 
         <div class="governorate-box">{{ order.governorate or 'N/A' }}</div>
 
-        <div class="address-box">{{ order.address or 'No address provided' }}</div>
+        {% set addr = order.address or 'No address provided' %}
+        {% set n = addr|length %}
+        <div class="address-box">
+            <div class="address-text {% if n > 300 %}fs-min{% elif n > 220 %}fs-xxs{% elif n > 160 %}fs-xs{% elif n > 130 %}fs-s{% elif n > 105 %}fs-m{% elif n > 90 %}fs-l{% endif %}" dir="auto">{{ addr }}</div>
+        </div>
     </div>
 
     <div class="financials">
@@ -199,6 +235,39 @@
     </div>
 </div>
 {% endfor %}
+
+<script>
+    // Keep the address frame at a fixed size: shrink the text until it fits inside.
+    // Same idea for the customer name / phones: keep each on a single line.
+    function fitLabels() {
+        document.querySelectorAll('.address-box').forEach(function (box) {
+            var txt = box.querySelector('.address-text');
+            var cs = getComputedStyle(box);
+            var maxH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+            function fits(fs) {
+                txt.style.fontSize = fs + 'px';
+                return txt.offsetHeight <= maxH && txt.scrollWidth <= txt.clientWidth;
+            }
+            var lo = 9, hi = 24;                 // biggest size = 24px, smallest = 9px
+            if (fits(hi)) return;                // short address: keep the big size
+            while (hi - lo > 0.5) {              // long address: find the largest size that fits
+                var mid = (lo + hi) / 2;
+                if (fits(mid)) { lo = mid; } else { hi = mid; }
+            }
+            txt.style.fontSize = lo + 'px';
+        });
+        document.querySelectorAll('.customer-info .val').forEach(function (el) {
+            var fs = parseFloat(getComputedStyle(el).fontSize);
+            while (el.scrollWidth > el.clientWidth && fs > 11) {
+                fs -= 0.5;
+                el.style.fontSize = fs + 'px';
+            }
+        });
+    }
+    fitLabels();
+    if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fitLabels); }
+    window.addEventListener('beforeprint', fitLabels);
+</script>
 
 <script>
     {% for order in orders %}
